@@ -1,0 +1,27 @@
+[project]
+name = "substack-publish"
+version = "0.1.0"
+description = "Push a markdown file to a Substack draft, resolving citations and uploading images."
+requires-python = ">=3.11"
+dependencies = [
+    "python-dotenv>=1.2.2",
+    # Pinned exactly, not floated. publish_draft.py replaces this library's
+    # module-level parse_inline (see the comment at that patch) because the
+    # stock one mishandles nested emphasis and links. That is a hook into
+    # private internals: a new release can change them without notice and
+    # break rendering silently, in the middle of a draft. Bump this only
+    # together with a re-read of the patch and a test publish.
+    "python-substack==0.1.23",
+    "pyyaml>=6.0.3",
+]
+
+[project.scripts]
+substack-draft = "publish_draft:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+only-include = ["publish_draft.py", "chicago-notes-bibliography.csl"]
+sources = ["."]

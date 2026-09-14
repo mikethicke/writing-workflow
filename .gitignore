@@ -1,0 +1,14 @@
+# Credentials. The real file belongs at ~/.config/substack-publish/.env --
+# see publish/.env.example. This rule is a backstop, not the plan.
+.env
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Neovim
+lazy-lock.json.bak
+
+# macOS
+.DS_Store

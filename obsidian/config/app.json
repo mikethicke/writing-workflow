@@ -1,0 +1,24 @@
+{
+  "spellcheck": true,
+  "emacsyKeys": false,
+  "useMarkdownLinks": true,
+  "attachmentFolderPath": "Assets",
+  "promptDelete": false,
+  "showFrontmatter": true,
+  "alwaysUpdateLinks": true,
+  "readableLineLength": false,
+  "legacyEditor": false,
+  "livePreview": true,
+  "useTab": false,
+  "newFileLocation": "folder",
+  "newFileFolderPath": "Default",
+  "userIgnoreFilters": [
+    "! templates/"
+  ],
+  "showLineNumber": true,
+  "showUnsupportedFiles": true,
+  "vimMode": true,
+  "uriCallbacks": true,
+  "foldHeading": false,
+  "foldIndent": false
+}
