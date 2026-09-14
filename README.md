@@ -1,13 +1,9 @@
 # writing-workflow
 
 The setup I use to write long-form essays and publish them to Substack: draft in
-Neovim, cite from Zotero, resolve citations with pandoc, push to a Substack draft
-with one keypress.
+Neovim, cite from Zotero, resolve citations with pandoc, push to a Substack draft.
 
-It exists because Substack's editor is a bad place to *write* — no version
-control, no real citation handling, no keyboard-driven editing — but a fine place
-to publish. So the writing happens in plain markdown on disk, and a script does
-the translation at the end.
+Reading highlights in Zotero and Kindle are imported to Obsidian.
 
 ```
 reading ─ Zotero + Better BibTeX ─┐
@@ -19,20 +15,14 @@ markdown in Neovim
    ├─ zotcite ............ @citekey completion from your Zotero library
    ├─ pandoc --citeproc .. @citekey → Chicago-style footnotes
    └─ publish_draft.py ... images → Substack CDN, markdown → Substack draft
-                                                     ↓
-                                            a draft, never published
 ```
-
-The last step deliberately stops at *draft*. Nothing here can publish a post or
-send an email; you review in the web editor and hit publish yourself.
-
 ## What's here
 
 | | |
 | --- | --- |
 | [`publish/`](publish/) | `publish_draft.py` — markdown → Substack draft. Citations, includes, image uploads, footnotes. |
 | [`nvim/`](nvim/) | A standalone Neovim config for prose: soft wrap, live word count, distraction-free modes, Zotero completion. |
-| [`obsidian/`](obsidian/) | The reading end: Zotero → literature notes, Kindle highlights → vault. Emits the same `[@citekey]` the publish script resolves. |
+| [`obsidian/`](obsidian/) | Zotero → literature notes, Kindle highlights → vault. Emits the same `[@citekey]` the publish script resolves. |
 | [`docs/`](docs/) | [The full workflow guide](docs/neovim-to-substack-workflow.md) and a [citation cheat sheet](docs/citation-cheat-sheet.md). |
 
 ## Quick start
@@ -52,7 +42,7 @@ cp publish/.env.example ~/.config/substack-publish/.env
 chmod 600 ~/.config/substack-publish/.env
 $EDITOR ~/.config/substack-publish/.env    # add your publication URL + session cookie
 
-# 2. the editor config (optional, but it's the other half)
+# 2. the editor config 
 ln -s "$PWD/nvim" ~/.config/nvim-prose
 echo "alias vprose='NVIM_APPNAME=nvim-prose nvim'" >> ~/.zshrc
 ```
@@ -88,12 +78,6 @@ known limitations — are in [`docs/neovim-to-substack-workflow.md`](docs/neovim
   doesn't even prompt.
 - **Images re-upload on every push**, so an image-heavy post accumulates
   duplicates on the CDN as you iterate.
-
-## Layout note
-
-This repo is the tooling only. My actual posts live in a separate private repo
-that pins this one as a submodule — which is the point of the split: the workflow
-is shareable, the drafts aren't.
 
 ## License
 

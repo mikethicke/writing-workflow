@@ -21,12 +21,11 @@ bibliography: references.bib
 ```
 
 The path is relative to the markdown file. Each post folder gets its own
-`references.bib`, which **zotcite writes automatically when you save the
-buffer** — you never edit it by hand. (Corollary: don't hand-edit it, your
-changes get overwritten on the next save.)
+`references.bib`, which zotcite writes automatically when you save the
+buffer. If you add or edit this file manually, future citations should get merged cleanly, though it can be a little flaky.
 
 Optional: `csl: some-style.csl` overrides the bundled
-`publish/chicago-notes-bibliography.csl`. You almost never want this.
+`publish/chicago-notes-bibliography.csl`.
 
 ---
 
@@ -38,9 +37,6 @@ Optional: `csl: some-style.csl` overrides the bundled
 | `<leader>zc` in normal mode | Telescope picker, seeded from the word under/before the cursor |
 | `<leader>zf` in normal mode | Telescope picker, **whole library** — use this for multi-word queries like `lucas american higher` |
 | `:Zseek pattern` | Same picker, from the command line (only the first word is used as the pattern) |
-
-`<C-x><C-b>`, zotcite's own insert-mode picker, **does not work under tmux** —
-`C-b` is the tmux prefix. That's what `<leader>zc` exists for.
 
 Keys are Better BibTeX keys (`lucasAmericanHigherEducation2006`), matching the
 exported `.bib`.
@@ -65,17 +61,9 @@ Other lookups:
 - `:Znote key` — pull Zotero notes in
 - `:Zinfo` — zotcite's internal state, for when something's broken
 
-You can also just read `references.bib` — it's plain text in the post folder:
-
-```bash
-grep -A20 'jarvisGutenberg' posts/01-college-after-ai/references.bib
-```
-
 ---
 
 ## 4. Citation syntax
-
-All examples below are **verified output** from this repo's pandoc + CSL setup.
 
 ### The basic form
 
@@ -141,11 +129,11 @@ the CSL handles it. This is also why reordering paragraphs is safe.
 
 ## 5. Footnotes with references *and* commentary
 
-This is the case worth memorizing. **Anything before the `@key` is a prefix;
-anything after the locator is a suffix.** Both land inside the footnote,
+Anything before the `@key` is a prefix;
+anything after the locator is a suffix. Both land inside the footnote,
 around the reference.
 
-### Comment after the reference — most common
+### Comment after the reference 
 
 ```markdown
 ...the standard account of the medieval origins.[@lucasAmericanHigherEducation2006, 51-66. I find the periodization unconvincing, but this is the account everyone works from.]
@@ -261,39 +249,7 @@ Three things worth knowing:
 
 ---
 
-## 7. Checking your work before publishing
-
-### Dry-run the citation resolution
-
-The single most useful command. Renders exactly what the publish script will
-send to Substack, without touching Substack:
-
-```bash
-cd posts/01-college-after-ai
-pandoc -f markdown -t markdown --wrap=preserve --citeproc \
-  -M suppress-bibliography=true \
-  --bibliography references.bib \
-  --csl ../../publish/chicago-notes-bibliography.csl \
-  college-after-ai.md
-```
-
-Watch for `[WARNING] Citeproc: citation somekey not found` — a typo'd or
-missing key renders as a bold **somekey?** in the output rather than failing.
-
-### Find broken keys fast
-
-```bash
-# keys cited in the post but missing from the bibliography
-comm -23 \
-  <(grep -o '@[A-Za-z][A-Za-z0-9_:.#$%&+?<>~/-]*' college-after-ai.md | tr -d '@' | sort -u) \
-  <(grep -o '^@[A-Za-z]*{[^,]*' references.bib | cut -d'{' -f2 | sort -u)
-```
-
-Anything it prints is a citation that will publish as **key?**. Usually it
-means the item was removed from the Zotero collection, or the key changed.
-Swap the two `<(...)` blocks to list unused entries instead.
-
-### Publish
+## 7. Publish
 
 `<leader>ps` in Neovim (or `:SubstackDraft`) creates the Substack draft;
 citations are resolved as part of that step. It stops at *draft* — always
@@ -305,11 +261,8 @@ eyeball the footnotes in Substack's editor before publishing.
 
 - **`<leader>pp` (PDF export) doesn't use the note CSL.** It calls pandoc
   without `--csl`, so the PDF shows author-date parentheticals, not footnotes.
-  Fine for reading; not a preview of the published post. Use the dry-run
-  command in §7 for that.
-- **No bibliography list is generated**, on purpose. Full-note citations
-  already carry the complete reference, and Substack's importer can't render
-  pandoc's `#refs` div.
+  Fine for reading; not a preview of the published post. 
+- **No bibliography list is generated**.
 - **Citations only resolve if `bibliography` is in the frontmatter.** Without
   it the publish script passes the markdown through untouched and your
   `[@citekey]` text ships literally into the draft.
