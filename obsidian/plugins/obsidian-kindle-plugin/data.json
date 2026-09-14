@@ -1,0 +1,6 @@
+{
+  "amazonRegion": "global",
+  "highlightsFolder": "Reading/Books/Kindle",
+  "syncOnBoot": false,
+  "downloadBookMetadata": true
+}

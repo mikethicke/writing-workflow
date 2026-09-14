@@ -1,63 +1,85 @@
 # obsidian
 
-An export of my main Obsidian vault's configuration, for reference.
+The reading end of the workflow: getting sources *into* notes, so their citekeys
+can come back out in a draft.
 
-**This is not part of the Neovim → pandoc → Substack pipeline.** It is a separate,
-older setup: reading, literature notes, and daily notes, using the Zotero
-*desktop connector* rather than zotcite. Nothing in here feeds `publish/`. It is
-included because people ask what the note-taking half of my setup looks like, not
-because you need it to use the rest of this repo.
+Two plugins do the work.
 
-Exported 2026-09-14. It will drift; I re-export by hand.
+**[Zotero Integration](https://github.com/mgmeyers/obsidian-zotero-integration)**
+(`obsidian-zotero-desktop-connector`) pulls an item out of Zotero — metadata,
+abstract, PDF annotations — and renders it into a literature note. It also
+inserts citations, and this is where it meets the rest of the repo: its `Pandoc`
+cite format produces `[@citekey]`, the exact syntax
+[`publish/publish_draft.py`](../publish) resolves into footnotes, and the same
+Better BibTeX keys that [`nvim/`](../nvim) completes via zotcite. One Zotero
+library, one key format, from reading through to a published draft.
 
-## Use
+**[Kindle Highlights](https://github.com/hadynz/obsidian-kindle-plugin)**
+(`obsidian-kindle-plugin`) syncs highlights and notes from Amazon into the vault.
 
-Copy the JSON files into an existing vault's `.obsidian/` directory, then restart
-Obsidian and install the community plugins listed below from within the app. Back
-up your own config first — these files replace it wholesale.
+Everything else in my vault is unrelated to writing and isn't here.
+
+## Requirements
+
+- [Zotero](https://www.zotero.org/) desktop, running, with
+  [Better BibTeX](https://retorque.re/zotero-better-bibtex/) installed — the
+  citekeys come from BBT.
+- [Dataview](https://github.com/blacksmithgu/obsidian-dataview) — the template
+  writes inline fields (`**Title**:: ...`), which are only queryable with it.
+  The note still renders without it; you just can't query across notes.
+- Optionally [Admonition](https://github.com/valentine195/obsidian-admonition),
+  to style the custom callout types the template uses (`[!Cite]`, `[!md]`,
+  `[!LINK]`, `[!Abstract]`). Without it they fall back to default callouts.
+
+Zotero Integration downloads its own `pdfannots2json` binary on first use, for
+pulling PDF annotations. Don't commit it — it's ~23 MB.
+
+## Install
+
+Install both plugins from Obsidian's community browser first, so the directories
+exist, then drop the settings in and restart Obsidian:
 
 ```bash
-cp config/*.json /path/to/your-vault/.obsidian/
+VAULT=/path/to/your-vault
+cp -r plugins/* "$VAULT/.obsidian/plugins/"
+mkdir -p "$VAULT/! templates"
+cp "templates/Literature Note.md" "$VAULT/! templates/"
 ```
 
-## What's exported
+These `data.json` files *replace* each plugin's settings — back up yours first if
+you have them configured. Nothing else in `.obsidian/` is touched, so your other
+plugins and preferences are left alone.
 
-`app.json`, `appearance.json`, `community-plugins.json`, `core-plugins.json`,
-`hotkeys.json`, `templates.json`, `daily-notes.json`.
+## What the settings do
 
-Deliberately **not** exported:
+**Zotero Integration** (`plugins/obsidian-zotero-desktop-connector/data.json`)
 
-- `plugins/` — third-party plugin bundles, and their `data.json` files hold
-  credentials — across the installed plugins those files carry API keys, a REST
-  API certificate and a stored password. Never copy that directory anywhere
-  public.
-- `workspace.json`, `bookmarks.json`, `starred.json`, `graph.json`, `types.json` —
-  window layout and pointers to specific private notes.
-- `themes/` — install from within Obsidian instead.
+- Literature notes land in `Literature Notes/@{{citekey}}.md`; extracted images
+  in `Assets/{{citekey}}/`. Both paths assume those folders exist — change
+  `exportFormats[].outputPathTemplate` if your vault is laid out differently.
+- Rendered from `! templates/Literature Note.md` (included here).
+- Three cite formats: **Pandoc** (`[@citekey]` — the one that feeds the publish
+  script), **Chicago notes**, and **Chicago author-date**.
+- `citeSuggestTemplate` is `[[{{citekey}}]]`, so the citation *suggester* makes
+  an internal link to the literature note rather than a bare key.
 
-## Notable settings
+**Kindle Highlights** (`plugins/obsidian-kindle-plugin/data.json`)
 
-Vim mode on. Base font 20pt, `Shimmering Focus` theme, translucency, system
-light/dark. Markdown-style links (not wikilinks), attachments in `Assets/`, new
-files in `Default/`, templates in `! templates/` (excluded from search via
-`userIgnoreFilters`). Daily notes at `Daily/YYYY/MM-MMMM/YYYY-MM-DD-dddd`.
+Highlights go to `Reading/Books/Kindle`, with book metadata, no sync on boot.
+Login state and last-sync timestamp are stripped — you sign in yourself, and the
+plugin rewrites those on first sync.
 
-## Community plugins
+## The template
 
-Writing and research:
-`obsidian-zotero-desktop-connector`, `pdf-plus`, `obsidian-kindle-plugin`,
-`smart-connections`, `dataview`, `templater-obsidian`, `obsidian-tasks-plugin`,
-`obsidian-admonition`, `tag-wrangler`, `obsidian-outliner`,
-`obsidian-auto-link-title`, `table-editor-obsidian`, `obsidian-dirtreeist`
+`templates/Literature Note.md` is [Nunjucks](https://mozilla.github.io/nunjucks/),
+which Zotero Integration renders. Worth knowing about it:
 
-Editing and UI:
-`obsidian-vimrc-support`, `obsidian-relative-line-numbers`, `obsidian-hider`,
-`obsidian-minimal-settings`, `cmdr`, `cm-editor-syntax-highlight-obsidian`,
-`obsidian-excalidraw-plugin`
-
-Integration:
-`obsidian-local-rest-api`, `obsidian-advanced-uri`,
-`obsidian-github-issues`, `github-tasks`, `co-intelligence`
-
-(`obsidian-git` and a few others are installed in that vault but disabled, so
-they are not in `community-plugins.json` and not listed here.)
+- Frontmatter carries `citekey`, `status: unread`, and an empty `dateread`, so
+  notes are filterable by reading state.
+- Creators are grouped by role, so editors and translators don't get labelled as
+  authors.
+- Annotations are wrapped in `{% persist "annotations" %}`. **This is the part
+  that matters:** re-importing an item appends only annotations newer than the
+  last import, under a dated heading, instead of overwriting the note. Your own
+  writing under `# Notes` survives. If you edit the template, keep that block.
+- Highlights render with their Zotero highlight colour preserved as a `<mark>`.

@@ -10,6 +10,11 @@ to publish. So the writing happens in plain markdown on disk, and a script does
 the translation at the end.
 
 ```
+reading ─ Zotero + Better BibTeX ─┐
+          Kindle highlights ──────┤  (obsidian/)
+                                  ↓
+                            one citekey
+                                  ↓
 markdown in Neovim
    ├─ zotcite ............ @citekey completion from your Zotero library
    ├─ pandoc --citeproc .. @citekey → Chicago-style footnotes
@@ -27,7 +32,7 @@ send an email; you review in the web editor and hit publish yourself.
 | --- | --- |
 | [`publish/`](publish/) | `publish_draft.py` — markdown → Substack draft. Citations, includes, image uploads, footnotes. |
 | [`nvim/`](nvim/) | A standalone Neovim config for prose: soft wrap, live word count, distraction-free modes, Zotero completion. |
-| [`obsidian/`](obsidian/) | An exported Obsidian config, for reference. Not part of the pipeline above — see its README. |
+| [`obsidian/`](obsidian/) | The reading end: Zotero → literature notes, Kindle highlights → vault. Emits the same `[@citekey]` the publish script resolves. |
 | [`docs/`](docs/) | [The full workflow guide](docs/neovim-to-substack-workflow.md) and a [citation cheat sheet](docs/citation-cheat-sheet.md). |
 
 ## Quick start
