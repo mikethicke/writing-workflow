@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import substack.post
 from substack import Api
 from substack.exceptions import SubstackAPIException
-from substack.post import Post
+from substack.post import Post, tokens_to_text_nodes
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CSL = os.path.join(SCRIPT_DIR, "chicago-notes-bibliography.csl")
@@ -813,6 +813,11 @@ def apply_image_attrs(post, images):
     sitting beside the `image2` node inside the `captionedImage` wrapper, whose
     content is inline text with no intervening paragraph. python-substack never
     builds one, so it is appended here.
+
+    The caption's own markdown is parsed, so a caption can be italicised or
+    carry a source link. Emitting it as one bare text node instead -- which is
+    what this used to do -- shipped `*source: [AOC](url)*` to the reader
+    literally, asterisks, brackets and all.
     """
     pending = list(images)
     for node in post.draft_body.get("content", []):
@@ -841,7 +846,9 @@ def apply_image_attrs(post, images):
                 node["content"] = node.get("content", []) + [
                     {
                         "type": "caption",
-                        "content": [{"type": "text", "text": record["caption"]}],
+                        "content": tokens_to_text_nodes(
+                            parse_inline(record["caption"])
+                        ),
                     }
                 ]
 
