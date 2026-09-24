@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
+from urllib.parse import urlparse
 
 import yaml
 from dotenv import load_dotenv
@@ -210,6 +211,135 @@ def expand_includes(content, base_dir, root_dir, stack):
         out.append("")
 
     return "\n".join(out), bibs
+
+
+# A line that is nothing but a subscribe shortcode: `{{subscribe}}`, or with a
+# caption of its own, `{{subscribe "Enjoying this? *Subscribe.*"}}` (single
+# quotes also work). A backslash -- `\{{subscribe}}` -- escapes it.
+_SUBSCRIBE_RE = re.compile(
+    r"""^[ \t]*\{\{[ \t]*subscribe"""
+    r"""(?:[ \t]+(?:"(?P<caption_d>[^"]*)"|'(?P<caption_s>[^']*)'))?"""
+    r"""[ \t]*\}\}[ \t]*$"""
+)
+_ESCAPED_SUBSCRIBE_RE = re.compile(r"^([ \t]*)\\(\{\{[ \t]*subscribe\b.*\}\}[ \t]*)$")
+
+# What a shortcode stands as between extract_subscribe_widgets and
+# insert_subscribe_widgets. Letters and digits only, so that neither pandoc nor
+# the inline parser finds anything in it to rewrite.
+_SUBSCRIBE_TOKEN = "SUBSTACKSUBSCRIBEWIDGET{}"
+
+# Substack's own default caption, with the publication's name filled in.
+_DEFAULT_SUBSCRIBE_CAPTION = (
+    "Thanks for reading{name}! Subscribe for free to receive new posts and "
+    "support my work."
+)
+
+
+def extract_subscribe_widgets(content):
+    """Swap each `{{subscribe}}` line for a placeholder paragraph.
+
+    Markdown has no way to say "subscribe button", so the shortcode is taken
+    out before citations and line-joining run and a bare token is left in its
+    place, in a paragraph of its own. Once python-substack has built the
+    document, insert_subscribe_widgets swaps each token's paragraph for a real
+    subscribeWidget node -- the email box and button Substack's editor inserts.
+
+    Runs after includes are expanded, so a shared footer can carry one.
+    Returns (content, captions): one caption per shortcode, in document order,
+    None where the default caption should be used.
+    """
+    out = []
+    captions = []
+    fence = None
+
+    for line in content.split("\n"):
+        match = _FENCE_RE.match(line)
+        if match:
+            marker = match.group(1)[0]
+            if fence is None:
+                fence = marker
+            elif fence == marker:
+                fence = None
+            out.append(line)
+            continue
+        if fence is not None:
+            out.append(line)
+            continue
+
+        escaped = _ESCAPED_SUBSCRIBE_RE.match(line)
+        if escaped:
+            out.append(escaped.group(1) + escaped.group(2))
+            continue
+
+        match = _SUBSCRIBE_RE.match(line)
+        if not match:
+            out.append(line)
+            continue
+
+        caption = match.group("caption_d")
+        if caption is None:
+            caption = match.group("caption_s")
+        captions.append(caption.strip() if caption and caption.strip() else None)
+        out += ["", _SUBSCRIBE_TOKEN.format(len(captions) - 1), ""]
+
+    return "\n".join(out), captions
+
+
+def _publication_name(api, publication_url):
+    """The display name of the publication being published to, or None."""
+    host = urlparse(publication_url).netloc.lower()
+    for pub in api.get_user_publications():
+        hosts = {
+            f"{pub.get('subdomain')}.substack.com".lower(),
+            (pub.get("custom_domain") or "").lower(),
+        }
+        if host in hosts:
+            return pub.get("name")
+    return None
+
+
+def insert_subscribe_widgets(post, captions, publication_name):
+    """Replace each placeholder paragraph with a subscribeWidget node.
+
+    The node is built here rather than with python-substack's
+    subscribe_with_caption, which only appends at the end of the document and
+    writes its caption as one unparsed text node. A caption here is parsed as
+    markdown, like an image caption. `%%checkout_url%%` is Substack's own
+    placeholder, filled in with the publication's subscribe link when the post
+    is rendered.
+    """
+    default = _DEFAULT_SUBSCRIBE_CAPTION.format(
+        name=f" {publication_name}" if publication_name else ""
+    )
+    tokens = {_SUBSCRIBE_TOKEN.format(i): i for i in range(len(captions))}
+    found = set()
+
+    content = []
+    for node in post.draft_body.get("content", []):
+        text = "".join(child.get("text", "") for child in node.get("content") or [])
+        index = tokens.get(text.strip()) if node.get("type") == "paragraph" else None
+        if index is None:
+            content.append(node)
+            continue
+        found.add(index)
+        content.append({
+            "type": "subscribeWidget",
+            "attrs": {"url": "%%checkout_url%%", "text": "Subscribe", "language": "en"},
+            "content": [{
+                "type": "ctaCaption",
+                "content": tokens_to_text_nodes(parse_inline(captions[index] or default)),
+            }],
+        })
+    post.draft_body["content"] = content
+
+    if len(found) != len(captions):
+        # A shortcode that went in and never came out would ship as a stray
+        # SUBSTACKSUBSCRIBEWIDGET paragraph. Better to stop.
+        sys.exit(
+            "A {{subscribe}} shortcode did not survive conversion. Make sure it "
+            "is alone on its line, outside any list or blockquote."
+        )
+
 
 def record_draft_id(markdown_path, draft_id):
     """Write the Substack draft id back into the file's YAML frontmatter.
@@ -873,6 +1003,7 @@ def publish(markdown_path, title=None, subtitle=None, force_new=False, assume_ye
                 seen.add(path)
         metadata["bibliography"] = declared
 
+    content, subscribe_captions = extract_subscribe_widgets(content)
     content = resolve_citations(content, metadata, base_dir)
     content = prepend_reviewed_header(content, metadata, base_dir)
 
@@ -924,6 +1055,13 @@ def publish(markdown_path, title=None, subtitle=None, force_new=False, assume_ye
     # apply_image_attrs is looking for.
     post.from_markdown(content)
     apply_image_attrs(post, images)
+    if subscribe_captions:
+        # Only the default caption needs the name, so only look it up then.
+        name = (
+            _publication_name(api, publication_url)
+            if None in subscribe_captions else None
+        )
+        insert_subscribe_widgets(post, subscribe_captions, name)
 
     if draft_id:
         if not confirm_overwrite(draft_id, assume_yes):
