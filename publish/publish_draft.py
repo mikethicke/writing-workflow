@@ -341,6 +341,50 @@ def insert_subscribe_widgets(post, captions, publication_name):
         )
 
 
+def merge_included_bibliographies(metadata, base_dir, included_bibs):
+    """Add the .bib files that included files declared to the post's own.
+
+    An include may carry its own `bibliography`, and its citations only
+    resolve if citeproc sees that file too. Order is preserved: the post's own
+    files first, then each include's, deduplicated by real path.
+    """
+    if not included_bibs:
+        return
+    declared = metadata.get("bibliography") or []
+    declared = list(declared) if isinstance(declared, list) else [declared]
+    seen = {os.path.realpath(os.path.join(base_dir, p)) for p in declared}
+    for path in included_bibs:
+        if path not in seen:
+            declared.append(path)
+            seen.add(path)
+    metadata["bibliography"] = declared
+
+
+def require_credentials():
+    """Return (cookies_string, publication_url), or exit explaining what's missing.
+
+    Without this, Api() fails somewhere inside python-substack with an error
+    that says nothing about the real problem.
+    """
+    cookies_string = os.getenv("COOKIES_STRING")
+    publication_url = os.getenv("PUBLICATION_URL")
+    missing = [
+        name
+        for name, value in (
+            ("COOKIES_STRING", cookies_string),
+            ("PUBLICATION_URL", publication_url),
+        )
+        if not value
+    ]
+    if missing:
+        sys.exit(
+            f"Missing {' and '.join(missing)}.\n"
+            f"Copy .env.example to ~/.config/substack-publish/.env and fill it "
+            f"in (or point $SUBSTACK_ENV_FILE at your own file)."
+        )
+    return cookies_string, publication_url
+
+
 def record_draft_id(markdown_path, draft_id):
     """Write the Substack draft id back into the file's YAML frontmatter.
 
@@ -993,15 +1037,7 @@ def publish(markdown_path, title=None, subtitle=None, force_new=False, assume_ye
     content, included_bibs = expand_includes(
         content, base_dir, base_dir, (os.path.realpath(markdown_path),)
     )
-    if included_bibs:
-        declared = metadata.get("bibliography") or []
-        declared = list(declared) if isinstance(declared, list) else [declared]
-        seen = {os.path.realpath(os.path.join(base_dir, p)) for p in declared}
-        for path in included_bibs:
-            if path not in seen:
-                declared.append(path)
-                seen.add(path)
-        metadata["bibliography"] = declared
+    merge_included_bibliographies(metadata, base_dir, included_bibs)
 
     content, subscribe_captions = extract_subscribe_widgets(content)
     content = resolve_citations(content, metadata, base_dir)
@@ -1017,24 +1053,7 @@ def publish(markdown_path, title=None, subtitle=None, force_new=False, assume_ye
     recorded_id = metadata.get(DRAFT_ID_KEY)
     draft_id = None if force_new else recorded_id
 
-    cookies_string = os.getenv("COOKIES_STRING")
-    publication_url = os.getenv("PUBLICATION_URL")
-    missing = [
-        name
-        for name, value in (
-            ("COOKIES_STRING", cookies_string),
-            ("PUBLICATION_URL", publication_url),
-        )
-        if not value
-    ]
-    if missing:
-        # Without this, Api() fails somewhere inside python-substack with an
-        # error that says nothing about the real problem.
-        sys.exit(
-            f"Missing {' and '.join(missing)}.\n"
-            f"Copy .env.example to ~/.config/substack-publish/.env and fill it "
-            f"in (or point $SUBSTACK_ENV_FILE at your own file)."
-        )
+    cookies_string, publication_url = require_credentials()
 
     api = Api(
         cookies_string=cookies_string,

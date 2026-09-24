@@ -185,6 +185,19 @@ Two other flags and failure modes:
 
 Note that local images re-upload on every sync rather than reusing the URLs already on Substack's CDN, so an image-heavy post accumulates duplicate uploads as you iterate.
 
+### The About page
+
+The About page is not a post. Substack keeps it as a field on the publication, and there is no draft stage: whatever is saved is live. `publish/publish_about.py` runs the pipeline above and writes the result there instead of to a draft:
+
+```bash
+uv run --project publish publish/publish_about.py about.md
+uv run --project publish publish/publish_about.py about.md --dry-run   # print, send nothing
+```
+
+Everything after the frontmatter works the same — includes, citations, images, soft-wrap joining — with three differences. There is no title or subtitle, so the page's heading is whatever `#` heading the file starts with, and `title`, `subtitle`, `audience`, `section` and `reviewed` are ignored. A `{{subscribe}}` line becomes the plain subscribe *button* the About page's own template uses rather than the email-box widget, and its caption, if any, is the button's label. And because the page is live, the interactive prompt is worded accordingly; `--dry-run` prints the document that would be sent, which is the way to check a change before making it.
+
+Sync is one-way here too, and the stakes are higher: a run replaces the page as readers see it, and edits made in Substack's About editor since the last run are gone.
+
 ---
 
 ## 4. Wire it into Neovim
@@ -222,6 +235,8 @@ vim.api.nvim_create_user_command("SubstackDraft", substack_draft, {})
 From within a draft that has a `title` in its frontmatter, press `<leader>ps` (or run `:SubstackDraft`) to send the current file straight to a Substack draft. Includes, citations, and image uploads all happen as part of that step.
 
 The first press creates the draft; every press after that updates it, and the notification says which happened. Because the mapping runs without a tty it never prompts, so remember that a press discards any web-editor edits made since the last sync. The `substack_draft_id` line appears in your frontmatter after the first press — the file is rewritten on disk, so Neovim will prompt to reload it (or reload it silently if you have `autoread` on).
+
+`<leader>pa` (or `:SubstackAbout`) does the same with `publish_about.py`, sending the current file to the About page. The same no-tty rule applies, and here there is no draft to review first: the press replaces the live page. Run the script with `--dry-run` from a terminal if you want to see the document before it goes.
 
 ---
 

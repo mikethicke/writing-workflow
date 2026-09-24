@@ -105,16 +105,18 @@ vim.keymap.set("n", "<leader>pp", function()
   end)
 end, { desc = "Export markdown to PDF (pandoc)" })
 
--- 7. Push the current markdown file to a Substack draft with <leader>ps.
+-- 7. Push the current markdown file to a Substack draft with <leader>ps, or
+--    to the publication's About page with <leader>pa.
 --    publish_draft.py resolves @citekeys (via pandoc + the bundled note CSL),
 --    uploads local images, and converts footnotes to Substack's native blocks.
 --    It stops at "draft" -- review and publish yourself in the web editor.
+--    publish_about.py runs the same pipeline but writes the live About page.
 --
 --    Override the tool's location by setting vim.g.substack_publish_dir before
 --    this file loads; otherwise it is expected at the path below.
 local substack_dir = vim.g.substack_publish_dir
   or vim.fn.expand("~/github/writing-workflow/publish")
-local function substack_draft()
+local function substack_run(script, started, fallback)
   if vim.bo.filetype ~= "markdown" then
     vim.notify("Not a markdown file", vim.log.levels.WARN)
     return
@@ -122,18 +124,27 @@ local function substack_draft()
   local input = vim.fn.expand("%:p")
   local cmd = {
     "uv", "run", "--project", substack_dir,
-    substack_dir .. "/publish_draft.py", input,
+    substack_dir .. "/" .. script, input,
   }
-  vim.notify("Creating Substack draft...")
+  vim.notify(started)
   vim.system(cmd, { text = true }, function(res)
     vim.schedule(function()
       if res.code == 0 then
-        vim.notify(res.stdout or "Draft created")
+        vim.notify(res.stdout or fallback)
       else
         vim.notify("Substack error:\n" .. (res.stderr or ""), vim.log.levels.ERROR)
       end
     end)
   end)
 end
+local function substack_draft()
+  substack_run("publish_draft.py", "Creating Substack draft...", "Draft created")
+end
+-- The About page has no draft stage: this replaces the live page at once.
+local function substack_about()
+  substack_run("publish_about.py", "Updating Substack About page...", "About page updated")
+end
 vim.keymap.set("n", "<leader>ps", substack_draft, { desc = "Create Substack draft from markdown" })
+vim.keymap.set("n", "<leader>pa", substack_about, { desc = "Replace Substack About page with markdown" })
 vim.api.nvim_create_user_command("SubstackDraft", substack_draft, {})
+vim.api.nvim_create_user_command("SubstackAbout", substack_about, {})

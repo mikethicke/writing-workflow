@@ -54,13 +54,15 @@ Leader is `<Space>`.
 | `<leader>zf` | zotcite picker over the whole library |
 | `<leader>pp` | export the current file to PDF via pandoc (uses `references.bib` if present) |
 | `<leader>ps` | push the current file to a Substack draft |
+| `<leader>pa` | replace the publication's About page with the current file — live, no draft stage |
 | `<leader>n` / `<leader>z` | writing margin / zen mode |
 | `<leader>ff` `<leader>fg` `<leader>fb` `<leader>fh` | telescope: files, grep, buffers, help |
 | `<leader>w` | write |
 
-`:SubstackDraft` does the same as `<leader>ps`.
+`:SubstackDraft` does the same as `<leader>ps`, and `:SubstackAbout` the same as
+`<leader>pa`.
 
-`<leader>ps` shells out to `../publish/publish_draft.py`. If you keep this repo
+Both shell out to `../publish/` (`publish_draft.py` and `publish_about.py`). If you keep this repo
 somewhere other than `~/github/writing-workflow`, set the path before the config
 loads:
 

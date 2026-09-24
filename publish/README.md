@@ -7,6 +7,9 @@ document format.
 
 It stops at *draft*. It cannot publish a post or send an email.
 
+`publish_about.py` runs the same pipeline and writes the result to the
+publication's About page, which has no draft stage — see below.
+
 ## Install
 
 ```bash
@@ -61,6 +64,39 @@ Frontmatter keys it reads:
 
 Paths — bibliographies, CSL files, images, includes — all resolve relative to the
 **markdown file**, not the working directory, so a post folder is self-contained.
+
+## The About page
+
+`publish_about.py` sends a markdown file to the publication's About page
+instead of to a draft:
+
+```bash
+uv run publish_about.py about.md
+uv run substack-about about.md                 # same thing, via the entry point
+uv run publish_about.py about.md --dry-run     # print the document, send nothing
+uv run publish_about.py about.md -y            # don't prompt
+```
+
+It runs the same pipeline — includes, citations, image uploads, the
+`{{subscribe}}` shortcode — with these differences:
+
+- **There is no draft.** The About page is a field on the publication, not a
+  post, and Substack has no draft stage for it. A run replaces the live page
+  at once. The prompt says so; `--dry-run` shows what would be sent.
+- **No title or subtitle.** The page's heading is whatever `#` heading the
+  markdown starts with. `title`, `subtitle`, `audience`, `section` and
+  `reviewed` in the frontmatter are ignored; `bibliography` and `csl` work.
+- **`{{subscribe}}` becomes a button, not a widget.** The About page's own
+  template uses a plain subscribe button, so that is what the shortcode
+  becomes here. The caption, if any, is the button's label — plain text.
+
+What is known about the endpoint, since none of it is documented: the page is
+`subscribe_content` on the publication, saved with
+`PUT /api/v1/publication` as a JSON-encoded document in the post body format.
+A PUT of that one field leaves the rest of the publication untouched. The
+About editor's schema names its marks `italic` and `bold` where python-substack
+writes `em` and `strong`, so the script renames them. All of this was found by
+watching the web editor save the page.
 
 ## Things to know before trusting it
 

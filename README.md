@@ -20,7 +20,7 @@ markdown in Neovim
 
 | | |
 | --- | --- |
-| [`publish/`](publish/) | `publish_draft.py` — markdown → Substack draft. Citations, includes, image uploads, footnotes. |
+| [`publish/`](publish/) | `publish_draft.py` — markdown → Substack draft. Citations, includes, image uploads, footnotes. `publish_about.py` — the same, to the publication's About page. |
 | [`nvim/`](nvim/) | A standalone Neovim config for prose: soft wrap, live word count, distraction-free modes, Zotero completion. |
 | [`obsidian/`](obsidian/) | Zotero → literature notes, Kindle highlights → vault. Emits the same `[@citekey]` the publish script resolves. |
 | [`docs/`](docs/) | [The full workflow guide](docs/neovim-to-substack-workflow.md) and a [citation cheat sheet](docs/citation-cheat-sheet.md). |
