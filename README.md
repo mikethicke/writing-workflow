@@ -20,7 +20,7 @@ markdown in Neovim
 
 | | |
 | --- | --- |
-| [`publish/`](publish/) | `publish_draft.py` — markdown → Substack draft. Citations, includes, image uploads, footnotes. `publish_about.py` — the same, to the publication's About page. |
+| [`publish/`](publish/) | `publish_draft.py` — markdown → Substack draft. Citations, includes, image uploads, footnotes, `{{subscribe}}` and `{{youtube}}` shortcodes. `publish_about.py` — the same, to the publication's About page. |
 | [`nvim/`](nvim/) | A standalone Neovim config for prose: soft wrap, live word count, distraction-free modes, Zotero completion. |
 | [`obsidian/`](obsidian/) | Zotero → literature notes, Kindle highlights → vault. Emits the same `[@citekey]` the publish script resolves. |
 | [`docs/`](docs/) | [The full workflow guide](docs/neovim-to-substack-workflow.md) and a [citation cheat sheet](docs/citation-cheat-sheet.md). |
@@ -59,13 +59,17 @@ bibliography: references.bib
 Prose, with a citation [@smithSomething2024] that becomes a footnote.
 
 ![Alt text](images/diagram.png "An optional caption")
+
+{{youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ}}
+
+{{subscribe "A subscribe widget, with an optional caption."}}
 ```
 
 The first push creates the draft and writes `substack_draft_id` back into your
 frontmatter; every push after that updates that same draft in place.
 
-Full details — every frontmatter key, the include directive, syncing edits, the
-known limitations — are in [`docs/neovim-to-substack-workflow.md`](docs/neovim-to-substack-workflow.md).
+Full details — every frontmatter key, the include directive, the shortcodes,
+syncing edits, the known limitations — are in [`docs/neovim-to-substack-workflow.md`](docs/neovim-to-substack-workflow.md).
 
 ## Caveats worth reading before you rely on this
 

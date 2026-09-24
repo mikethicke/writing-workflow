@@ -2,8 +2,9 @@
 
 `publish_draft.py` turns a markdown file into a Substack draft: it resolves
 `@citekey` citations into footnotes, splices in shared includes, uploads local
-images to Substack's CDN, and converts the result into Substack's internal
-document format.
+images to Substack's CDN, turns `{{subscribe}}` and `{{youtube <link>}}` lines
+into the editor's subscribe widget and video embed, and converts the result
+into Substack's internal document format.
 
 It stops at *draft*. It cannot publish a post or send an email.
 
@@ -78,7 +79,7 @@ uv run publish_about.py about.md -y            # don't prompt
 ```
 
 It runs the same pipeline — includes, citations, image uploads, the
-`{{subscribe}}` shortcode — with these differences:
+`{{subscribe}}` and `{{youtube}}` shortcodes — with these differences:
 
 - **There is no draft.** The About page is a field on the publication, not a
   post, and Substack has no draft stage for it. A run replaces the live page

@@ -123,6 +123,16 @@ As Smith argues, widgets matter [@smith2020widgets].
 
   Single quotes work too. The caption is parsed as markdown, like an image caption, but citations inside it are not resolved. The shortcode works inside an included file, so a series footer can carry one. It must be alone on its line and outside any list or blockquote; `\{{subscribe}}` escapes it, and it is ignored inside fenced code blocks.
 
+- **YouTube videos:** a line that is nothing but `{{youtube <link>}}` becomes the embedded player the web editor inserts when you paste a YouTube link. A link in the markdown itself stays a link, because the auto-embed happens in the editor, not in the document. Any of the usual URL forms work, or the bare video id:
+
+  ```markdown
+  {{youtube https://www.youtube.com/watch?v=dQw4w9WgXcQ}}
+  {{youtube https://youtu.be/dQw4w9WgXcQ}}
+  {{youtube dQw4w9WgXcQ}}
+  ```
+
+  The same rules as `{{subscribe}}` apply: alone on its line, outside lists and blockquotes, `\{{youtube ...}}` to escape, ignored in code fences. A link that names no video aborts the run rather than shipping an empty player. Other video sites are not supported; link to them instead.
+
 - **Tables:** not supported by Substack's editor. Avoid them, or convert to an image before publishing.
 
 ---
@@ -135,13 +145,13 @@ What a run does, in order:
 
 1. **Splits the frontmatter** off the top of the file, leaving the body.
 2. **Expands includes** — every `-> other.md` line becomes that file's contents, recursively, so everything after this point sees one document.
-3. **Sets aside subscribe shortcodes** — each `{{subscribe}}` line becomes a placeholder paragraph, swapped for a real subscribe widget once the document has been converted (step 9).
+3. **Sets aside shortcodes** — each `{{subscribe}}` and `{{youtube ...}}` line becomes a placeholder paragraph, swapped for a real subscribe widget or video embed once the document has been converted (step 9).
 4. **Resolves citations** — `pandoc --citeproc` with the note-based CSL turns `@citekey` into footnotes, if the post has both a `bibliography` and at least one citation.
 5. **Renders the reviewed-work header**, when `reviewed:` names one or more keys, as a blockquote above the first paragraph. It runs after the citations so citeproc never sees it, which is why a later `[@key]` for the same work still gets a full first-reference footnote.
 6. **Isolates image lines** — a blank line is inserted either side of any line that is nothing but an image, because python-substack treats a block beginning with `!` as one image and silently drops the rest of that block.
 7. **Rejoins soft-wrapped lines** into whole paragraphs, leaving code fences alone and rebuilding blockquotes as it goes.
 8. **Uploads local images** to Substack's CDN, resolved relative to the markdown file, and rewrites the markdown to point at the returned URLs.
-9. **Converts the markdown** to Substack's document format via python-substack's `Post.from_markdown`, with the library's `parse_inline` replaced by one that handles nested formatting, then patches each image node with its real dimensions and alt text, and puts a subscribe widget where each placeholder paragraph stands.
+9. **Converts the markdown** to Substack's document format via python-substack's `Post.from_markdown`, with the library's `parse_inline` replaced by one that handles nested formatting, then patches each image node with its real dimensions and alt text, and puts a subscribe widget or YouTube embed where each placeholder paragraph stands.
 10. **Creates or updates the draft**, recording the new draft's id in the frontmatter the first time.
 
 Any failure along the way exits non-zero with a message instead of shipping a half-broken draft: a missing include or an include loop, a missing bibliography or CSL file, a `reviewed:` key that is not in the `.bib`, a missing image file, a failed upload, a pandoc error, or a recorded draft id that no longer exists in Substack.

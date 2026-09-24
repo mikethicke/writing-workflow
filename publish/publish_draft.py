@@ -4,7 +4,7 @@ import re
 import shutil
 import subprocess
 import sys
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import yaml
 from dotenv import load_dotenv
@@ -248,8 +248,30 @@ def extract_subscribe_widgets(content):
     Returns (content, captions): one caption per shortcode, in document order,
     None where the default caption should be used.
     """
+    def caption_of(match):
+        caption = match.group("caption_d")
+        if caption is None:
+            caption = match.group("caption_s")
+        return caption.strip() if caption and caption.strip() else None
+
+    return _extract_shortcodes(
+        content, _SUBSCRIBE_RE, _ESCAPED_SUBSCRIBE_RE, _SUBSCRIBE_TOKEN, caption_of
+    )
+
+
+def _extract_shortcodes(content, pattern, escaped_pattern, token, value_of):
+    """Swap each line matching `pattern` for a placeholder paragraph.
+
+    The shared mechanics of the `{{...}}` shortcodes: a match must be a whole
+    line, is left alone inside a fenced code block, and is unescaped rather
+    than replaced when it matches `escaped_pattern` (a leading backslash).
+    Each match is replaced by `token` numbered in document order, in a
+    paragraph of its own, and `value_of(match)` records what it stood for.
+
+    Returns (content, values), one value per shortcode in document order.
+    """
     out = []
-    captions = []
+    values = []
     fence = None
 
     for line in content.split("\n"):
@@ -266,23 +288,123 @@ def extract_subscribe_widgets(content):
             out.append(line)
             continue
 
-        escaped = _ESCAPED_SUBSCRIBE_RE.match(line)
+        escaped = escaped_pattern.match(line)
         if escaped:
             out.append(escaped.group(1) + escaped.group(2))
             continue
 
-        match = _SUBSCRIBE_RE.match(line)
+        match = pattern.match(line)
         if not match:
             out.append(line)
             continue
 
-        caption = match.group("caption_d")
-        if caption is None:
-            caption = match.group("caption_s")
-        captions.append(caption.strip() if caption and caption.strip() else None)
-        out += ["", _SUBSCRIBE_TOKEN.format(len(captions) - 1), ""]
+        values.append(value_of(match))
+        out += ["", token.format(len(values) - 1), ""]
 
-    return "\n".join(out), captions
+    return "\n".join(out), values
+
+
+def _replace_placeholders(post, token, count, make_node, shortcode):
+    """Swap each placeholder paragraph left by _extract_shortcodes for a node.
+
+    `make_node(index)` builds the node for the index-th shortcode. A
+    placeholder that went in and never came out would ship as a stray token
+    paragraph, so the run stops if any is missing.
+    """
+    tokens = {token.format(i): i for i in range(count)}
+    found = set()
+
+    content = []
+    for node in post.draft_body.get("content", []):
+        text = "".join(child.get("text", "") for child in node.get("content") or [])
+        index = tokens.get(text.strip()) if node.get("type") == "paragraph" else None
+        if index is None:
+            content.append(node)
+            continue
+        found.add(index)
+        content.append(make_node(index))
+    post.draft_body["content"] = content
+
+    if len(found) != count:
+        sys.exit(
+            f"A {shortcode} shortcode did not survive conversion. Make sure it "
+            "is alone on its line, outside any list or blockquote."
+        )
+
+
+# A line that is nothing but a YouTube shortcode: `{{youtube <url or id>}}`.
+# The argument is any of the usual URL forms -- watch?v=, youtu.be/, shorts/,
+# embed/, live/ -- or a bare 11-character video id. A backslash --
+# `\{{youtube ...}}` -- escapes it.
+_YOUTUBE_RE = re.compile(
+    r"""^[ \t]*\{\{[ \t]*youtube[ \t]+(?P<target>[^\s}]+)[ \t]*\}\}[ \t]*$"""
+)
+_ESCAPED_YOUTUBE_RE = re.compile(r"^([ \t]*)\\(\{\{[ \t]*youtube\b.*\}\}[ \t]*)$")
+_YOUTUBE_TOKEN = "SUBSTACKYOUTUBEEMBED{}"
+_YOUTUBE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
+
+
+def youtube_video_id(target):
+    """The video id named by a YouTube URL or bare id, or None."""
+    if _YOUTUBE_ID_RE.match(target):
+        return target
+    url = urlparse(target if "://" in target else "https://" + target)
+    host = url.netloc.lower()
+    for prefix in ("www.", "m.", "music."):
+        host = host.removeprefix(prefix)
+    parts = url.path.strip("/").split("/")
+
+    candidate = None
+    if host == "youtu.be":
+        candidate = parts[0]
+    elif host in ("youtube.com", "youtube-nocookie.com"):
+        if parts[0] == "watch":
+            candidate = parse_qs(url.query).get("v", [None])[0]
+        elif parts[0] in ("shorts", "embed", "live", "v") and len(parts) > 1:
+            candidate = parts[1]
+    return candidate if candidate and _YOUTUBE_ID_RE.match(candidate) else None
+
+
+def extract_youtube_embeds(content):
+    """Swap each `{{youtube ...}}` line for a placeholder paragraph.
+
+    Substack's editor turns a pasted YouTube link into an embed, but a link
+    in markdown pushed through the API stays a link. The shortcode is taken
+    out before citations and line-joining run, like `{{subscribe}}`, and
+    insert_youtube_embeds later swaps each placeholder for the `youtube2`
+    node the editor would have made. A URL that names no video stops the
+    run here rather than shipping an empty player.
+
+    Returns (content, video_ids), one id per shortcode in document order.
+    """
+    def video_id_of(match):
+        target = match.group("target")
+        video_id = youtube_video_id(target)
+        if video_id is None:
+            sys.exit(
+                f"{{{{youtube {target}}}}}: not a YouTube video URL or id. Use a "
+                "watch?v=, youtu.be/, shorts/ or embed/ link, or the bare id."
+            )
+        return video_id
+
+    return _extract_shortcodes(
+        content, _YOUTUBE_RE, _ESCAPED_YOUTUBE_RE, _YOUTUBE_TOKEN, video_id_of
+    )
+
+
+def insert_youtube_embeds(post, video_ids):
+    """Replace each placeholder paragraph with a youtube2 embed node.
+
+    `youtube2` with a `videoId` is what Substack's editor stores for a YouTube
+    embed; the player, title and thumbnail are filled in when the post
+    renders. python-substack's own `youtube()` helper is not used because it
+    writes into whatever node happens to be last rather than a new one.
+    """
+    _replace_placeholders(
+        post, _YOUTUBE_TOKEN, len(video_ids),
+        lambda i: {"type": "youtube2", "attrs": {"videoId": video_ids[i]}},
+        "{{youtube}}",
+    )
 
 
 def _publication_name(api, publication_url):
@@ -311,34 +433,17 @@ def insert_subscribe_widgets(post, captions, publication_name):
     default = _DEFAULT_SUBSCRIBE_CAPTION.format(
         name=f" {publication_name}" if publication_name else ""
     )
-    tokens = {_SUBSCRIBE_TOKEN.format(i): i for i in range(len(captions))}
-    found = set()
-
-    content = []
-    for node in post.draft_body.get("content", []):
-        text = "".join(child.get("text", "") for child in node.get("content") or [])
-        index = tokens.get(text.strip()) if node.get("type") == "paragraph" else None
-        if index is None:
-            content.append(node)
-            continue
-        found.add(index)
-        content.append({
+    def widget(index):
+        return {
             "type": "subscribeWidget",
             "attrs": {"url": "%%checkout_url%%", "text": "Subscribe", "language": "en"},
             "content": [{
                 "type": "ctaCaption",
                 "content": tokens_to_text_nodes(parse_inline(captions[index] or default)),
             }],
-        })
-    post.draft_body["content"] = content
+        }
 
-    if len(found) != len(captions):
-        # A shortcode that went in and never came out would ship as a stray
-        # SUBSTACKSUBSCRIBEWIDGET paragraph. Better to stop.
-        sys.exit(
-            "A {{subscribe}} shortcode did not survive conversion. Make sure it "
-            "is alone on its line, outside any list or blockquote."
-        )
+    _replace_placeholders(post, _SUBSCRIBE_TOKEN, len(captions), widget, "{{subscribe}}")
 
 
 def merge_included_bibliographies(metadata, base_dir, included_bibs):
@@ -1040,6 +1145,7 @@ def publish(markdown_path, title=None, subtitle=None, force_new=False, assume_ye
     merge_included_bibliographies(metadata, base_dir, included_bibs)
 
     content, subscribe_captions = extract_subscribe_widgets(content)
+    content, youtube_ids = extract_youtube_embeds(content)
     content = resolve_citations(content, metadata, base_dir)
     content = prepend_reviewed_header(content, metadata, base_dir)
 
@@ -1081,6 +1187,8 @@ def publish(markdown_path, title=None, subtitle=None, force_new=False, assume_ye
             if None in subscribe_captions else None
         )
         insert_subscribe_widgets(post, subscribe_captions, name)
+    if youtube_ids:
+        insert_youtube_embeds(post, youtube_ids)
 
     if draft_id:
         if not confirm_overwrite(draft_id, assume_yes):
