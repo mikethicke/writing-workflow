@@ -110,6 +110,7 @@ def build_document(markdown_path, api, publication_url):
     draft.merge_included_bibliographies(metadata, base_dir, included_bibs)
 
     content, subscribe_captions = draft.extract_subscribe_widgets(content)
+    content, youtube_ids = draft.extract_youtube_embeds(content)
     content = draft.resolve_citations(content, metadata, base_dir)
     # No reviewed-work header: an About page is not a review.
 
@@ -124,6 +125,8 @@ def build_document(markdown_path, api, publication_url):
     draft.apply_image_attrs(post, images)
     if subscribe_captions:
         insert_subscribe_buttons(post, subscribe_captions, publication_url)
+    if youtube_ids:
+        draft.insert_youtube_embeds(post, youtube_ids)
     rename_marks(post.draft_body)
     return post.draft_body
 
