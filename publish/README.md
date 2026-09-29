@@ -1,7 +1,8 @@
 # publish
 
 `publish_draft.py` turns a markdown file into a Substack draft: it resolves
-`@citekey` citations into footnotes, splices in shared includes, uploads local
+`@citekey` citations into footnotes, rewrites inline `^[note]` footnotes into
+the labelled form, splices in shared includes, uploads local
 images to Substack's CDN, turns `{{subscribe}}` and `{{youtube <link>}}` lines
 into the editor's subscribe widget and video embed, and converts the result
 into Substack's internal document format.

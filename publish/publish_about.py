@@ -111,6 +111,7 @@ def build_document(markdown_path, api, publication_url):
 
     content, subscribe_captions = draft.extract_subscribe_widgets(content)
     content, youtube_ids = draft.extract_youtube_embeds(content)
+    content = draft.expand_inline_footnotes(content)
     content = draft.resolve_citations(content, metadata, base_dir)
     # No reviewed-work header: an About page is not a review.
 

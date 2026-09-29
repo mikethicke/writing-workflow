@@ -1,4 +1,5 @@
 import argparse
+import itertools
 import os
 import re
 import shutil
@@ -540,6 +541,154 @@ def confirm_overwrite(draft_id, assume_yes):
         "will be lost. [y/N] "
     )
     return answer.strip().lower() in ("y", "yes")
+
+
+# An inline footnote, pandoc-style: `text.^[The note.]` -- the note written
+# where its marker goes, with no label and no definition line to keep in step.
+_INLINE_NOTE_START = "^["
+
+# The label an inline note is given when it is turned into a labelled one.
+# Something an author is unlikely to have used by hand; a collision is checked
+# for anyway.
+_INLINE_NOTE_LABEL = "inline-{}"
+
+_FOOTNOTE_LABEL_RE = re.compile(r"\[\^([^\]\s]+)\]")
+
+
+def expand_inline_footnotes(content):
+    """Rewrite each inline `^[note]` as a labelled `[^label]` footnote.
+
+    Inline notes are easier to write and to move around than a marker in the
+    body paired with a definition somewhere below it, but python-substack only
+    understands the two-part form. So each `^[...]` becomes a `[^inline-n]`
+    marker where it stood and a `[^inline-n]: ...` definition appended to the
+    end of the document. Numbering follows document order; the label never
+    shows, since python-substack renumbers by first reference anyway.
+
+    Runs before citations are resolved, so that the result is the same whether
+    or not pandoc gets a turn (it would rewrite inline notes itself, but only
+    when the post has a bibliography and a citation), and so that a `@key`
+    inside a note is resolved inside a footnote definition -- the same rules
+    as any manual footnote apply: unbracketed citations, bracketed locators.
+
+    A note may contain balanced square brackets (links, say) and may run over
+    a soft line break, but not a blank line. Notes inside fenced code blocks
+    and inline code spans are left alone, as is one with a backslash in front
+    of it, `\\^[`, which is passed through untouched.
+    """
+    taken = set(_FOOTNOTE_LABEL_RE.findall(content))
+    definitions = []
+    counter = itertools.count(1)
+
+    def next_label():
+        while (label := _INLINE_NOTE_LABEL.format(next(counter))) in taken:
+            pass
+        taken.add(label)
+        return label
+
+    out = []
+    fence = None
+    for block in _split_paragraphs(content):
+        # Fences are tracked line by line, but a paragraph is rewritten (or
+        # not) as a whole, so a note can run over a soft break inside one.
+        in_code = False
+        for line in block.split("\n"):
+            match = _FENCE_RE.match(line)
+            if match:
+                marker = match.group(1)[0]
+                if fence is None:
+                    fence = marker
+                elif fence == marker:
+                    fence = None
+                in_code = True
+            elif fence is not None:
+                in_code = True
+        if in_code:
+            out.append(block)
+            continue
+        out.append(_rewrite_inline_notes(block, next_label, definitions))
+
+    if not definitions:
+        return content
+    body = "".join(out)
+    trailer = "\n\n".join(f"[^{label}]: {text}" for label, text in definitions)
+    return body.rstrip("\n") + "\n\n" + trailer + "\n"
+
+
+def _split_paragraphs(content):
+    """Split into chunks that alternate paragraph text and blank-line runs.
+
+    Joining the chunks back together reproduces the input exactly.
+    """
+    return re.split(r"(\n[ \t]*\n(?:[ \t]*\n)*)", content)
+
+
+def _rewrite_inline_notes(text, next_label, definitions):
+    """Replace each `^[...]` in one paragraph, collecting its note text."""
+    out = []
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch == "\\" and i + 1 < n:
+            # Whatever follows a backslash is not the start of a note.
+            out.append(text[i:i + 2])
+            i += 2
+            continue
+        if ch == "`":
+            # Skip an inline code span whole, so `^[` inside one is not a note.
+            run = len(text[i:]) - len(text[i:].lstrip("`"))
+            close = text.find("`" * run, i + run)
+            if close != -1 and not text.startswith("`" * (run + 1), close):
+                out.append(text[i:close + run])
+                i = close + run
+                continue
+            out.append(text[i:i + run])
+            i += run
+            continue
+        if text.startswith(_INLINE_NOTE_START, i):
+            end = _matching_bracket(text, i + 1)
+            if end != -1:
+                note = " ".join(text[i + 2:end].split())
+                if note:
+                    label = next_label()
+                    definitions.append((label, note))
+                    out.append(f"[^{label}]")
+                    i = end + 1
+                    continue
+        out.append(ch)
+        i += 1
+    return "".join(out)
+
+
+def _matching_bracket(text, start):
+    """Index of the `]` closing the `[` at `start`, or -1 if unbalanced.
+
+    Brackets inside inline code spans and backslash-escaped brackets do not
+    count.
+    """
+    depth = 0
+    i = start
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch == "\\":
+            i += 2
+            continue
+        if ch == "`":
+            run = len(text[i:]) - len(text[i:].lstrip("`"))
+            close = text.find("`" * run, i + run)
+            if close != -1:
+                i = close + run
+                continue
+        if ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
 
 
 def _normalize_urls(text):
@@ -1147,6 +1296,7 @@ def publish(markdown_path, title=None, subtitle=None, force_new=False, assume_ye
 
     content, subscribe_captions = extract_subscribe_widgets(content)
     content, youtube_ids = extract_youtube_embeds(content)
+    content = expand_inline_footnotes(content)
     content = resolve_citations(content, metadata, base_dir)
     content = prepend_reviewed_header(content, metadata, base_dir)
 

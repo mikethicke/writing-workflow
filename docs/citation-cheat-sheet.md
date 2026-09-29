@@ -195,10 +195,24 @@ No citation involved — plain markdown footnote, nothing special:
 [^aside]: I did not build a solar car.
 ```
 
+Or write it inline, with no label to invent and no definition to keep
+in step when you move the paragraph:
+
+```markdown
+...frat parties, and building solar cars.^[I did not build a solar car.]
+```
+
+The two forms mix freely. An inline note follows the same rules as a manual
+footnote for any citation inside it — narrative `@key`, bracketed locator:
+
+```markdown
+...the medieval side.^[See @lucasAmericanHigherEducation2006 [51-66], which I find unconvincing.]
+```
+
 ### Numbering
 
-Citation footnotes and manual `[^name]` footnotes are **merged and renumbered
-together** in document order. Use descriptive names (`[^credentials]`) rather
+Citation footnotes, manual `[^name]` footnotes and inline `^[...]` notes are
+**merged and renumbered together** in document order. Use descriptive names (`[^credentials]`) rather
 than `[^1]`, `[^2]` — the names never appear in output and you'll never have to
 renumber by hand.
 
