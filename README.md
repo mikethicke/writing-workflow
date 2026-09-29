@@ -67,6 +67,21 @@ frontmatter; every push after that updates that same draft in place.
 Full details — every frontmatter key, the include directive, syncing edits, the
 known limitations — are in [`docs/neovim-to-substack-workflow.md`](docs/neovim-to-substack-workflow.md).
 
+## Automatic commits
+
+Copy [`publish/autocommit.toml.example`](publish/autocommit.toml.example) to
+`.autocommit.toml` at the root of the repo where you write. Repos without that
+file are untouched. Then:
+
+- **Save** in nvim: once ~`threshold_words` (default 100) words have changed since
+  the last commit, everything not `.gitignore`d is committed.
+- **Closing nvim**: any pending change is committed.
+- **Push to Substack** (`publish_draft.py` / `publish_about.py`): the post's
+  directory is committed, `substack_draft_id` write-back included.
+- Messages are written by Haiku through the `claude` CLI, falling back to
+  `Autosave: <file> (stat)` if that fails. `push = true` (default) pushes after
+  each commit; set it to `false` to stay local.
+
 ## Caveats worth reading before you rely on this
 
 - **Substack has no public API for posts.** This uses

@@ -1,0 +1,9 @@
+# Copy to the root of a writing repo as `.autocommit.toml` to turn on
+# automatic commits (see publish/autocommit.py). Every key is optional.
+
+enabled = true            # master switch
+push = true               # git push after each commit
+# remote = "origin"       # default: the branch's upstream
+threshold_words = 100     # words changed before a save commits
+model = "haiku"           # passed to `claude --model`
+prefix_publish = "Substack push: "

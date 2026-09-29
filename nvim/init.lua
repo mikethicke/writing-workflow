@@ -148,3 +148,28 @@ vim.keymap.set("n", "<leader>ps", substack_draft, { desc = "Create Substack draf
 vim.keymap.set("n", "<leader>pa", substack_about, { desc = "Replace Substack About page with markdown" })
 vim.api.nvim_create_user_command("SubstackDraft", substack_draft, {})
 vim.api.nvim_create_user_command("SubstackAbout", substack_about, {})
+
+-- 8. Auto-commit for writing repos. Opt-in: only repos that have an
+--    .autocommit.toml at their root (see publish/autocommit.py). A save commits
+--    once ~threshold_words words have changed; closing nvim commits whatever
+--    is pending. Runs detached so it never blocks the editor or outlives it
+--    badly; a Substack push commits through publish_draft.py itself.
+local function autocommit(mode)
+  local file = vim.fn.expand("%:p")
+  if file == "" then return end
+  local found = vim.fs.find(".autocommit.toml", { upward = true, path = vim.fs.dirname(file) })
+  if #found == 0 then return end
+  vim.fn.jobstart({
+    "uv", "run", "--project", substack_dir,
+    substack_dir .. "/autocommit.py", mode, file,
+  }, { detach = true })
+end
+local autocommit_group = vim.api.nvim_create_augroup("ProseAutocommit", { clear = true })
+vim.api.nvim_create_autocmd("BufWritePost", {
+  group = autocommit_group,
+  callback = function() autocommit("save") end,
+})
+vim.api.nvim_create_autocmd("VimLeavePre", {
+  group = autocommit_group,
+  callback = function() autocommit("exit") end,
+})

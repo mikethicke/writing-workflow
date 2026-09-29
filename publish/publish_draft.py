@@ -6,6 +6,7 @@ import subprocess
 import sys
 from urllib.parse import urlparse
 
+import autocommit
 import yaml
 from dotenv import load_dotenv
 import substack.post
@@ -1106,6 +1107,8 @@ def publish(markdown_path, title=None, subtitle=None, force_new=False, assume_ye
 
     print(f"Draft {action}: {draft_id}")
     print(f"Edit it at: {publication_url}/publish/post/{draft_id}")
+    # After record_draft_id, so the commit includes the frontmatter write-back.
+    autocommit.safe_run("publish", markdown_path)
 
 
 def main():

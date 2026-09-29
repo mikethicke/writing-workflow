@@ -19,6 +19,7 @@ import sys
 from substack import Api
 from substack.post import Post
 
+import autocommit
 import publish_draft as draft
 
 # The label Substack's own About page template gives its subscribe button.
@@ -160,6 +161,7 @@ def publish(markdown_path, assume_yes=False, dry_run=False):
         )
 
     print(f"About page updated: {publication_url}/about")
+    autocommit.safe_run("publish", markdown_path)
 
 
 def main():
