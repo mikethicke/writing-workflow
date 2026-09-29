@@ -151,15 +151,64 @@ def commit_and_push(root, cfg, paths=None, prefix=""):
     git(root, "commit", "-q", "-m", message)
     print(f"autocommit: {message}")
     if cfg["push"]:
-        args = ["push", "-q"]
-        if cfg["remote"]:
-            args += [cfg["remote"], "HEAD"]
-        result = subprocess.run(
-            ["git", "-C", root, *args],
-            capture_output=True, text=True, timeout=PUSH_TIMEOUT,
-        )
-        if result.returncode != 0:
-            print(f"autocommit: push failed: {result.stderr.strip()}", file=sys.stderr)
+        push(root, cfg)
+
+
+def _remote_args(cfg):
+    return [cfg["remote"], "HEAD"] if cfg["remote"] else []
+
+
+def _git_quiet(root, *args):
+    return subprocess.run(
+        ["git", "-C", root, *args],
+        capture_output=True, text=True, timeout=PUSH_TIMEOUT,
+    )
+
+
+def push(root, cfg):
+    """Push; if the remote has moved on, merge it in and push again.
+
+    A conflicting merge is aborted, leaving the local commits as they were, and
+    pushing stops until the user sorts it out by hand.
+    """
+    remote = _remote_args(cfg)
+    result = _git_quiet(root, "push", "-q", *remote)
+    if result.returncode == 0:
+        return
+    pull = _git_quiet(root, "pull", "--no-rebase", "--no-edit", "-q", *remote)
+    if pull.returncode != 0:
+        if merge_in_progress(root):
+            _git_quiet(root, "merge", "--abort")
+            print("autocommit: remote has diverged and merging conflicts; "
+                  "merge aborted, not pushed. Resolve by hand.", file=sys.stderr)
+        else:
+            print(f"autocommit: pull failed: {pull.stderr.strip()}", file=sys.stderr)
+        return
+    print("autocommit: merged remote changes")
+    result = _git_quiet(root, "push", "-q", *remote)
+    if result.returncode != 0:
+        print(f"autocommit: push failed: {result.stderr.strip()}", file=sys.stderr)
+
+
+def _git_path_exists(root, name):
+    path = git(root, "rev-parse", "--git-path", name).strip()
+    return os.path.exists(os.path.join(root, path))
+
+
+def merge_in_progress(root):
+    return _git_path_exists(root, "MERGE_HEAD")
+
+
+def unfinished_operation(root):
+    """True mid-merge/rebase/cherry-pick or with unresolved conflicts.
+
+    Committing then would bake conflict markers into history, so all triggers
+    stand down until the user finishes the operation.
+    """
+    if any(_git_path_exists(root, n) for n in
+           ("MERGE_HEAD", "rebase-merge", "rebase-apply", "CHERRY_PICK_HEAD", "REVERT_HEAD")):
+        return True
+    return bool(git(root, "ls-files", "--unmerged").strip())
 
 
 def run(mode, path):
@@ -168,6 +217,10 @@ def run(mode, path):
         return
     cfg = load_config(root)
     if not cfg["enabled"]:
+        return
+    if unfinished_operation(root):
+        print("autocommit: merge/rebase in progress or conflicts unresolved; skipping",
+              file=sys.stderr)
         return
 
     # One run at a time per repo: rapid saves must not race on the index. A
