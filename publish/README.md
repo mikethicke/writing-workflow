@@ -100,6 +100,15 @@ About editor's schema names its marks `italic` and `bold` where python-substack
 writes `em` and `strong`, so the script renames them. All of this was found by
 watching the web editor save the page.
 
+## Automatic commits
+
+`autocommit.py` commits the repo you write in, and both scripts call it after a
+successful push, committing the post's directory. It is opt-in: it does nothing
+unless `.autocommit.toml` exists at the repo root (copy
+[`autocommit.toml.example`](autocommit.toml.example)). It is also run from
+Neovim on save and on exit -- see the root README and the guide. It never
+raises into the publish scripts; a failure only prints a warning.
+
 ## Things to know before trusting it
 
 **It rewrites your markdown file.** After the first run it inserts

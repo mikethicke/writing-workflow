@@ -249,6 +249,16 @@ The first press creates the draft; every press after that updates it, and the no
 
 `<leader>pa` (or `:SubstackAbout`) does the same with `publish_about.py`, sending the current file to the About page. The same no-tty rule applies, and here there is no draft to review first: the press replaces the live page. Run the script with `--dry-run` from a terminal if you want to see the document before it goes.
 
+### Automatic commits
+
+If the repo you write in has an `.autocommit.toml` at its root (a commented template is at `publish/autocommit.toml.example`), the same setup also keeps it in git for you. Repos without that file are left alone.
+
+- **On save**, once about `threshold_words` words (default 100) have changed since the last commit, everything not `.gitignore`d is committed.
+- **On closing Neovim**, whatever is pending is committed, however small.
+- **After a push to Substack**, `publish_draft.py` and `publish_about.py` commit the post's directory. That commit includes the `substack_draft_id` written back into the frontmatter.
+
+A small model (Haiku, through the `claude` CLI) writes the messages, falling back to `Autosave: <file> (diffstat)` if it can't. With `push = true` (the default) each commit is pushed. If the remote has moved on, the remote changes are merged in and the push retried. A conflicting merge is aborted, nothing is pushed, and the triggers stand down while any merge, rebase or unresolved conflict is in progress, so conflict markers are never committed. Everything is in `publish/autocommit.py`; the Neovim side is the `ProseAutocommit` autocommands at the end of `nvim/init.lua`.
+
 ---
 
 ## 5. Fallback: manual copy-paste

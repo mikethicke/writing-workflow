@@ -18,6 +18,13 @@ Optional, for citations: Zotero with
 [Better BibTeX](https://retorque.re/zotero-better-bibtex/), which
 [zotcite](https://github.com/jalvesaq/zotcite) reads.
 
+## Auto-commit
+
+In a repo with an `.autocommit.toml` at its root, saving commits (and pushes,
+if configured) once enough words have changed, and closing Neovim commits
+whatever is pending. Messages come from Haiku. It is off everywhere else. See
+[`publish/autocommit.py`](../publish/autocommit.py) and the root README.
+
 ## What it does differently from a coding config
 
 **Prose reads by paragraph, not by line.** `wrap`, `linebreak`, and `breakindent`
